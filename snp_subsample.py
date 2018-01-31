@@ -194,15 +194,15 @@ def nucleotide_to_structure(nucleotide):
 def check_directory(dir_name):
         if not os.path.exists(dir_name):
             os.mkdir(dir_name)
-        if dir_name[-1] != '/':
+        if not dir_name.endswith('/'):
             dir_name = dir_name + '/'
         return dir_name
 
 
 if __name__ == "__main__":
     arguments = docopt.docopt(__doc__)
-    for arg in arguments:
-        if 'dir' in arg:
+    for arg in ("<snp-sites-dir>", "--output-filtered-fasta-dir"):
+        if arguments[arg]:
             arguments[arg] = check_directory(arguments[arg])
     main(arguments)
 
