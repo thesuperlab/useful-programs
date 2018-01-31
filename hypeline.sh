@@ -9,6 +9,7 @@
 
 input_dir=$2
 output_dir=$3
+snps_dir=snp_sites/
 # make sure directory names end in a forward slash
 if [ ""${input_dir:$(expr ${#string} - 1):1} != "/" ]; then
 	$input_dir=$input_dir/
@@ -27,7 +28,7 @@ fi
 inter_dir=intermediates/
 indiv_haps_dir=${inter_dir}individual_haps/
 combined_haps_dir=${inter_dir}combined_haps/
-directories=($output_dir $inter_dir $indiv_haps_dir $combined_haps_dir)
+directories=($output_dir $inter_dir $indiv_haps_dir $combined_haps_dir $snps_dir)
 for dir in ${directories[@]}; do
 	if [ ! -e $dir ]; then
 		mkdir $dir
@@ -63,5 +64,7 @@ for filename in $(ls $combined_haps_dir); do
 	id=$(echo $filename | sed -e 's/\..*//g')
 	aligned_file=${combined_haps_dir}${id}.aligned.haps
 	mafft --retree 1 --maxiterate 0 --quiet ${combined_haps_dir}${filename} > $aligned_file
-	remove_ref_seqs.py $aligned_file ${output_dir}${id}.haps $reference_file
+	haps_filename=${output_dir}${id}.haps
+	remove_ref_seqs.py $aligned_file $haps_filename $reference_file
+	snp-sites -o ${snps_dir}${id}.snps $haps_filename
 done
