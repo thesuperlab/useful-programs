@@ -15,8 +15,8 @@ def main():
 
     input_dir = sys.argv[1]
     output_dir = sys.argv[2]
-    input_dir = input_dir + "/" if input_dir[-1] != "/"
-    output_dir = output_dir + "/" if output_dir[-1] != "/"
+    input_dir = input_dir if input_dir.endswith("/") else input_dir + "/"
+    output_dir = output_dir if output_dir.endswith("/") else output_dir + "/"
     if not os.path.isdir(output_dir):
         os.mkdir(output_dir)
     reference_filename = sys.argv[3]
