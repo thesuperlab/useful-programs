@@ -1,5 +1,5 @@
 #!/bin/bash
-# hypeline: a pipeline for haplotype calling using whatshap
+# hypeline: a pipeline for haplotype calling on paired-end NGS data using bwa, freebayes, & whatshap
 # Author: Kelly Sovacool
 # Email: kellysovacool@uky.edu
 # 30 Nov. 2017
@@ -19,8 +19,8 @@ if [ ""${output_dir:$(expr ${#string} - 1):1} != "/" ]; then
 fi
 reference_name=$1  # do not include .fna extension
 reference_file=${reference_name}.fna
-if [ ! -e ${reference_name}.1.bt2 ]; then
-	bowtie2-build $reference_file $reference_name
+if [ ! -e ${reference_name}.bwt ]; then
+	bwa index $reference_file
 fi
 if [ ! -e ${reference_file}.fai ]; then
 	samtools faidx $reference_file
@@ -35,12 +35,11 @@ for dir in ${directories[@]}; do
 		echo "made dir $dir"
 	fi
 done
-
-for filename in $(ls $input_dir); do
-	id=$(echo $filename | sed -e 's/\..*//g')
-
+for id in $( ls $input_dir | sed s/[-_].*$// | tr ' ' '\n' | sort -u | tr '\n' ' ' ); do
+	filename_r1="${input_dir}${id}_R1.fna"
+	filename_r2="${input_dir}{id}_R2.fna"
 	sorted_bam=${inter_dir}${id}.sorted.bam	
-	bowtie2 -x $reference_name -f ${input_dir}${filename} | samtools view -S -b | samtools sort - -o $sorted_bam
+	bwa mem $reference_file $filename_r1 $filename_r2 | samtools view -S -b | samtools sort - -o $sorted_bam
 
 	filtered_vcf=${inter_dir}${id}.filtered.vcf
 	freebayes --min-base-quality 3 --min-mapping-quality 1 -f $reference_file $sorted_bam | bcftools filter -e 'QUAL < 20' | bcftools filter -e 'DP < 5' -o $filtered_vcf
@@ -52,8 +51,8 @@ for filename in $(ls $input_dir); do
 	zipped_vcf=${phased_vcf}.gz
 	tabix $zipped_vcf
 
-	hap1=${indiv_haps_dir}${id}.hap1.fasta
-	hap2=${indiv_haps_dir}${id}.hap2.fasta
+	hap1=${indiv_haps_dir}${id}.hap1.fna
+	hap2=${indiv_haps_dir}${id}.hap2.fna
 	bcftools consensus -H 1 -f $reference_file $zipped_vcf > $hap1
 	bcftools consensus -H 2 -f $reference_file $zipped_vcf > $hap2
 done
