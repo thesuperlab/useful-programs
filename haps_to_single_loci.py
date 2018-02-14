@@ -20,8 +20,8 @@ def main():
     if not os.path.isdir(output_dir):
         os.mkdir(output_dir)
     reference_filename = sys.argv[3]
-    hap1_suffix = '.hap1.fasta'
-    hap2_suffix = '.hap2.fasta'
+    hap1_suffix = '.hap1.fna'
+    hap2_suffix = '.hap2.fna'
     loci = collections.defaultdict(dict)
     input_filenames = os.listdir(input_dir)
     individual_ids = {filename.split('.')[0] for filename in input_filenames}
@@ -35,7 +35,7 @@ def main():
     for locus_id in loci:
         sequences = [loci[locus_id][seq_id] for seq_id in sorted(loci[locus_id].keys())]
         sequences.insert(0, reference_sequences[locus_id])
-        with open(output_dir + locus_id + '.haps.ref.fasta', 'w') as file:
+        with open(output_dir + locus_id + '.haps.ref.fna', 'w') as file:
             Bio.SeqIO.write(sequences, file, 'fasta')
 
 main()
