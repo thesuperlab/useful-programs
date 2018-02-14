@@ -35,7 +35,7 @@ for dir in ${directories[@]}; do
 		echo "made dir $dir"
 	fi
 done
-for id in $( ls $input_dir | sed s/[-_].*$// | tr ' ' '\n' | sort -u | tr '\n' ' ' ); do
+for id in $( ls $input_dir | sed s/[-_].*$// | tr ' ' '\n' | sort -u | tr '\n' ' ' | sed 's/ //g' ); do
 	filename_r1="${input_dir}${id}_R1.fna"
 	filename_r2="${input_dir}{id}_R2.fna"
 	sorted_bam=${inter_dir}${id}.sorted.bam	
