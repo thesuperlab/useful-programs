@@ -35,11 +35,23 @@ for dir in ${directories[@]}; do
 		echo "made dir $dir"
 	fi
 done
-for id in $( ls $input_dir | sed s/[-_].*$// | tr ' ' '\n' | sort -u | tr '\n' ' ' | sed 's/ //g' ); do
+for id in $( ls $input_dir | sed s/[-_].*$// | tr ' ' '\n' | sort -u | tr '\n' ' ' ); do
 	filename_r1="${input_dir}${id}_R1.fna"
-	filename_r2="${input_dir}{id}_R2.fna"
+	filename_r2="${input_dir}${id}_R2.fna"
 	sorted_bam=${inter_dir}${id}.sorted.bam	
-	bwa mem $reference_file $filename_r1 $filename_r2 | samtools view -S -b | samtools sort - -o $sorted_bam
+	if [ -f $filename_r1 ] && [ -f $filename_r2 ]; then 
+		bwa mem $reference_file $filename_r1 $filename_r2 | samtools view -S -b | samtools sort - -o $sorted_bam
+	else
+		if [ -f $filename_r1 ]; then
+			filename=$filename_r1
+		elif [ -f $filename_r2 ]; then
+			filename=$filename_r2
+		else
+			echo "neither $filename_r1 nor $filename_r2 exist"
+			break
+		fi
+		bwa mem $reference_file $filename | samtools view -S -b | samtools sort - -o $sorted_bam
+	fi
 
 	filtered_vcf=${inter_dir}${id}.filtered.vcf
 	freebayes --min-base-quality 3 --min-mapping-quality 1 -f $reference_file $sorted_bam | bcftools filter -e 'QUAL < 20' | bcftools filter -e 'DP < 5' -o $filtered_vcf
@@ -63,7 +75,10 @@ for filename in $(ls $combined_haps_dir); do
 	id=$(echo $filename | sed -e 's/\..*//g')
 	aligned_file=${combined_haps_dir}${id}.aligned.haps
 	mafft --retree 1 --maxiterate 0 --quiet ${combined_haps_dir}${filename} > $aligned_file
+	removed_refs_filename=${combined_haps_dir}${id}.aligned.no_refs.haps
+	remove_ref_seqs.py $aligned_file $removed_refs_filename $reference_file
 	haps_filename=${output_dir}${id}.haps
-	remove_ref_seqs.py $aligned_file $haps_filename $reference_file
+	ambiguous_dashes.py $removed_refs_filename $haps_filename
 	snp-sites -o ${snps_dir}${id}.snps $haps_filename
 done
+
