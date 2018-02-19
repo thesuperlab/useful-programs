@@ -40,7 +40,7 @@ for dir in ${directories[@]}; do
 done
 #for id in $( ls $input_dir | sed s/\.*$// | tr ' ' '\n' | sort -u | tr '\n' ' ' ); do
 for infile in $( ls $input_dir ); do
-	id=$( echo $infile | sed s/\.*$// )
+	id=$( echo $infile | sed s/\.fna$// )
 	echo "Calling haplotypes for id ${id}"
 	sorted_bam=${inter_dir}${id}.sorted.bam	
 	#filename_r1="${input_dir}${id}_R1.fq"
