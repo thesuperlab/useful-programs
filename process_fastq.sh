@@ -5,7 +5,7 @@
 # 12 Oct. 2017
 #
 # Process raw fastq files for further analysis. Includes g-unzipping, quality trimming, quality filtering,
-# clipping short sequences, and converting final result to fasta format.
+# clipping short sequences. This version does not convert output to fasta format because bwa prefers fastq. 
 # INDIVIDUAL IDS MUST NOT HAVE DASH - OR UNDERSCORE _ IN THE ID NAME
 #
 # Usage:
@@ -33,14 +33,14 @@ fastx_clipper="${fastx_path}fastx_clipper -l 5"
 
 for in_filename in $( ls ${input_dir}); do
     id=$( echo $in_filename | sed s/[-_].*$// | tr ' ' '\n' | sort -u | tr '\n' ' ' | sed 's/ //g' )
-	out_filename="debug.fna"
+	out_filename="debug.fq"
     if [[ $in_filename == *"R1"* ]]; then
-        out_filename="${output_dir}${id}_R1.fna"
+        out_filename="${output_dir}${id}_R1.fq"
     elif [[ $in_filename == *"R2"* ]]; then
-        out_filename="${output_dir}${id}_R2.fna"
+        out_filename="${output_dir}${id}_R2.fq"
     else
         echo "${id} not paired-end"
-        out_filename="${output_dir}${id}.fna"
+        out_filename="${output_dir}${id}.fq"
     fi
-    gunzip -kc ${input_dir}$in_filename  | $trimmer_cmd | $filter_cmd | $fastx_clipper | $fasta_cmd | sed 's/>/>'${id}'_/g' > $out_filename
+    gunzip -kc ${input_dir}$in_filename  | $trimmer_cmd | $filter_cmd | $fastx_clipper | sed 's/>/>'${id}'_/g' > $out_filename
 done
