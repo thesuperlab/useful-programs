@@ -15,6 +15,7 @@ import sys
 def main():
     structure_path = '/home/klso224/tools/structure-2.3.4/structure'  # change this to the location of structure on your account
     subsample_filename = sys.argv[1]
+    email="kellysovacool@uky.edu"
     k_min = 2
     k_max = 8  # change this to the maximum k value you want to test
     runs = 16  # should be no greater than the number of threads available
@@ -29,7 +30,7 @@ def main():
                 L = len(line.split()) - 1
     N = N / 2
     for k in range(k_min, k_max + 1):
-        script = '#!/bin/bash\necho "SBATCH_NODELIST: $SBATCH_NODELIST"\n\n'
+        script = '#!/bin/bash\necho "SBATCH_NODELIST: $SBATCH_NODELIST"\nSBATCH --mail-type=ALL\nSBATCH --mail-user=' + email + "\n\n"
         for run in range(1, runs + 1):
             script += structure_path + " -i " + subsample_filename + " -K " + str(k) + " -L " + str(L) + " -N " + str(N) + " -o " + subsample_filename.split('.')[0] + '_k' + str(k) + '_run' + str(run) + '.out &\nsleep 10\n\n'
         script += 'wait'
