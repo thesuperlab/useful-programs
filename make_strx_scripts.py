@@ -30,7 +30,7 @@ def main():
                 L = len(line.split()) - 1
     N = N / 2
     for k in range(k_min, k_max + 1):
-        script = '#!/bin/bash\necho "SBATCH_NODELIST: $SBATCH_NODELIST"\nSBATCH --mail-type=ALL\nSBATCH --mail-user=' + email + "\n\n"
+        script = '#!/bin/bash\n#SBATCH --mail-type=ALL\n#SBATCH --mail-user=' + email + "\nSBATCH_NODELIST: $SBATCH_NODELIST\n\n"
         for run in range(1, runs + 1):
             script += structure_path + " -i " + subsample_filename + " -K " + str(k) + " -L " + str(L) + " -N " + str(N) + " -o " + subsample_filename.split('.')[0] + '_k' + str(k) + '_run' + str(run) + '.out &\nsleep 10\n\n'
         script += 'wait'
