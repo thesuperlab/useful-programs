@@ -28,6 +28,8 @@ def main(args):
             if ''.join(set(new_seq)) != '-': # throw out sequences that are entirely dashes
                 record.seq = Bio.Seq.Seq(new_seq)
                 out_records.append(record)
+            else:
+                print("{} from {} has no nucleotides".format(new_seq.id, input_filename))
     Bio.SeqIO.write(out_records, args['<output_filename>'], 'fasta')
 
 
