@@ -5,14 +5,15 @@ Email: kellysovacool@uky.edu
 28 Sep 2017
 
 Usage: 
-    snp_subsample.py <snp-sites-dir> <output-filename-base> [--abundance-filter=<percent-cutoff> --output-filtered-fasta-dir=<filtered_dir> --size=<subsample-size> --all-snps-all-loci --missing-cutoff=<percent-cutoff> --output-format=<fasta-or-strx> --ignore-indels] 
+    snp_subsample.py <snp-sites-dir> <output-filename-base> [--abundance-filter=<percent-cutoff> --output-filtered-fasta-dir=<filtered_dir> --skip-filter --size=<subsample-size> --all-snps-all-loci --missing-cutoff=<percent-cutoff> --output-format=<fasta-or-strx> --ignore-indels]
     snp_subsample.py --help
 
 Options:
     -h --help                                   display this incredibly helpful message.
     --abundance-filter=<percent-cutoff>         filter out SNPs below a percent abundance cutoff [default: 0.05].
     --missing-cutoff=<percent-cutoff>           filter out SNP sites with more than <percent-cutoff> of individuals missing data [default: 0.5].
-    --size=<subsample-size>                     number of subsamples.
+    --skip-filter                               skip the filtering step (e.g. if using already-filtered data).
+    --size=<subsample-size>                     number of subsamples [default: 1].
     --all-snps-all-loci                         output a file containing all snps from all loci.
     --output-filtered-fasta-dir=<filtered_dir>  output filtered snp-sites fastas to a directory.
     --output-format=<fasta-or-strx>             output format for subsamples [default: strx].
@@ -29,43 +30,54 @@ import random
 
 def main(args):
     args['--ignore-indels'] = '--ignore-indels' in args
-    loci = Loci()  # id: Locus
-    individual_ids = set()
+    args['--skip-filter'] = '--skip-filter' in args
+    all_individual_ids = set()
     for fasta_filename in os.listdir(args['<snp-sites-dir>']):  # build set of individual ids
         with open(args['<snp-sites-dir>'] + fasta_filename, 'r') as infile:
-            individual_ids.update(record.id for record in Bio.SeqIO.parse(infile, 'fasta'))
+            all_individual_ids.update(record.id for record in Bio.SeqIO.parse(infile, 'fasta'))
+    bad_individual_ids = set()
+    for id in all_individual_ids:  # throw out individuals that aren't haplotyped
+        id_no_number = id.split('_')[0]
+        if id_no_number + '_1' not in all_individual_ids or id_no_number + '_2' not in all_individual_ids:
+            bad_individual_ids.add(id)
+    all_individual_ids.difference_update(bad_individual_ids)
+
+    loci = Loci()  # build loci
     for fasta_filename in sorted(os.listdir(args['<snp-sites-dir>'])):
         with open(args['<snp-sites-dir>'] + fasta_filename, 'r') as infile:
             locus_id = fasta_filename.split('.')[0]
-            locus = Locus(locus_id, Bio.SeqIO.parse(infile, 'fasta'), individual_ids)
-            locus.filter(float(args['--abundance-filter']), float(args['--missing-cutoff']), ignore_indels=args['--ignore-indels'])
-            if args['--output-filtered-fasta-dir']:
-                with open(args['--output-filtered-fasta-dir'] + fasta_filename, 'w') as filtered_fasta:
-                    for seq_id, sequence in locus.individuals.items():
-                        filtered_fasta.write('>' + seq_id + '\n')
-                        filtered_fasta.write(sequence + '\n')
+            locus = Locus(locus_id, Bio.SeqIO.parse(infile, 'fasta'), all_individual_ids, bad_individual_ids)
+            if not args['--skip-filter']:
+                locus.filter(float(args['--abundance-filter']), float(args['--missing-cutoff']), ignore_indels=args['--ignore-indels'])
+                if args['--output-filtered-fasta-dir']:
+                    with open(args['--output-filtered-fasta-dir'] + fasta_filename, 'w') as filtered_fasta:
+                        for seq_id, sequence in locus.individuals.items():
+                            filtered_fasta.write('>' + seq_id + '\n')
+                            filtered_fasta.write(sequence + '\n')
         loci.append(locus)
-    out_format = output_format(args['--output-format'])
-    if args['--size']:
+    output_file_extension = output_format_extension(args['--output-format'])
+
+    if args['--size']:  # take subsample(s)
         for number in range(1, int(args['--size']) + 1):
             loci.new_random_poly_sites()
-            with open(args['<output-filename-base>'] + str(number) + out_format, 'w') as outfile:
-                for id in individual_ids:
-                    line = id + '\t' if out_format != '.strx.txt' else id.split('_')[0] + '\t'
+            with open(args['<output-filename-base>'] + str(number) + output_file_extension, 'w') as outfile:
+                for id in sorted(all_individual_ids):
+                    line = id + '\t' if output_file_extension != '.strx.txt' else id.split('_')[0] + '\t'
                     for locus in loci:
                         nuc = locus.individuals[id][locus.random_poly_site] if id in locus.individuals else '-'
-                        if out_format == '.strx.txt':
+                        if output_file_extension == '.strx.txt':
                             nuc = nucleotide_to_structure(nuc)
                         line += nuc + '\t'
                     line += '\n'
                     outfile.write(line)
+
     if args['--all-snps-all-loci']:
-        with open('all-snps-all-loci' + out_format, 'w') as outfile:
-            for id in individual_ids:
-                line = id + '\t' if out_format != '.strx.txt' else id.split('_')[0] + '\t'
+        with open('all-snps-all-loci' + output_file_extension, 'w') as outfile:
+            for id in sorted(all_individual_ids):
+                line = id + '\t' if output_file_extension != '.strx.txt' else id.split('_')[0] + '\t'
                 for locus in loci:
                     seq = locus.individuals[id] if id in locus.individuals else '-'*len(locus.polymorphic_sites)
-                    if out_format == '.strx.txt':
+                    if output_file_extension == '.strx.txt':
                         strx_seq = ''
                         for nuc in seq:
                             strx_seq += nucleotide_to_structure(nuc) + '\t'
@@ -93,13 +105,17 @@ class Loci(list):
 
 
 class Locus:
-    def __init__(self, id, seq_records, all_individual_ids):
+    def __init__(self, id, seq_records, all_individual_ids, bad_individual_ids):
         self.id = id
         self.individuals = {seq_rec.id: str(seq_rec.seq) for seq_rec in seq_records}  # id: sequence
-        length = max(self.individuals, key=lambda id: len(self.individuals[id]))
+
+        length = max(len(seq) for seq in self.individuals.values())
         for missing_id in all_individual_ids - set(self.individuals.keys()):
-            print('individual', missing_id, 'not in locus', self.id, '-- filling in nucleotides as dashes')
+            #print('individual', missing_id, 'not in locus', self.id, '-- filling in nucleotides as dashes')
             self.individuals[missing_id] = '-' * length
+        for bad_id in bad_individual_ids:
+            self.individuals.pop(bad_id, False)
+
         self.polymorphic_sites = []
         first_individual = True
         for indiv_id, sequence in self.individuals.items():
@@ -109,7 +125,7 @@ class Locus:
                     self.polymorphic_sites.append(PolymorphicSite())
                 if nucleotide not in self.polymorphic_sites[i].snps and nucleotide in SNP.nucleotides:
                     self.polymorphic_sites[i].snps[nucleotide] = SNP(nucleotide)
-                self.polymorphic_sites[i].snps[nucleotide].individual_ids.add(indiv_id)
+                    self.polymorphic_sites[i].snps[nucleotide].individual_ids.add(indiv_id)
                 i += 1
             first_individual = False
         self.random_poly_site = None
@@ -176,14 +192,14 @@ class SNP:
         return hash((self.nucleotide, tuple(sorted(self.individual_ids))))
 
 
-def output_format(argument):
-    if argument == 'strx':
-        out_format = '.strx.txt'
-    elif argument == 'fasta':
-        out_format = '.fasta'
+def output_format_extension(format):
+    if format == 'strx':
+        extension = '.strx.txt'
+    elif format == 'fasta':
+        extension = '.fasta'
     else:
-        raise ValueError('unrecognized output format {}'.format(argument))
-    return out_format
+        raise ValueError('unrecognized output format {}'.format(format))
+    return extension
 
 
 def nucleotide_to_structure(nucleotide):
