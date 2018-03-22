@@ -25,7 +25,7 @@ import docopt
 import os
 import random
 
-# TODO: --ignore-indels option: either filter out sites containing indels, or call indels missing data (default) 
+# Redesign: clean up main fcn, better OOP design
 
 
 def main(args):
@@ -36,7 +36,7 @@ def main(args):
         with open(args['<snp-sites-dir>'] + fasta_filename, 'r') as infile:
             all_individual_ids.update(record.id for record in Bio.SeqIO.parse(infile, 'fasta'))
     bad_individual_ids = set()
-    for id in all_individual_ids:  # throw out individuals that aren't haplotyped
+    for id in all_individual_ids:  # throw out individuals that aren't haplotyped (usually they're not real individuals)
         id_no_number = id.split('_')[0]
         if id_no_number + '_1' not in all_individual_ids or id_no_number + '_2' not in all_individual_ids:
             bad_individual_ids.add(id)
