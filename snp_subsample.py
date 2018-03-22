@@ -29,16 +29,15 @@ import random
 
 def main(args):
     args['--ignore-indels'] = '--ignore-indels' in args
-    print(args['--ignore-indels'])
     loci = Loci()  # id: Locus
-    individual_ids = []
+    individual_ids = set()
+    for fasta_filename in os.listdir(args['<snp-sites-dir>']):  # build set of individual ids
+        with open(args['<snp-sites-dir>'] + fasta_filename, 'r') as infile:
+            individual_ids.update(record.id for record in Bio.SeqIO.parse(infile, 'fasta'))
     for fasta_filename in sorted(os.listdir(args['<snp-sites-dir>'])):
         with open(args['<snp-sites-dir>'] + fasta_filename, 'r') as infile:
             locus_id = fasta_filename.split('.')[0]
-            locus = Locus(locus_id, Bio.SeqIO.parse(infile, 'fasta'))
-            if not individual_ids:
-                for id in sorted(locus.individuals):
-                    individual_ids.append((id))
+            locus = Locus(locus_id, Bio.SeqIO.parse(infile, 'fasta'), individual_ids)
             locus.filter(float(args['--abundance-filter']), float(args['--missing-cutoff']), ignore_indels=args['--ignore-indels'])
             if args['--output-filtered-fasta-dir']:
                 with open(args['--output-filtered-fasta-dir'] + fasta_filename, 'w') as filtered_fasta:
@@ -94,9 +93,13 @@ class Loci(list):
 
 
 class Locus:
-    def __init__(self, id, seq_records):
+    def __init__(self, id, seq_records, all_individual_ids):
         self.id = id
         self.individuals = {seq_rec.id: str(seq_rec.seq) for seq_rec in seq_records}  # id: sequence
+        length = max(self.individuals, key=lambda id: len(self.individuals[id]))
+        for missing_id in all_individual_ids - set(self.individuals.keys()):
+            print('individual', missing_id, 'not in locus', self.id, '-- filling in nucleotides as dashes')
+            self.individuals[missing_id] = '-' * length
         self.polymorphic_sites = []
         first_individual = True
         for indiv_id, sequence in self.individuals.items():
@@ -104,7 +107,7 @@ class Locus:
             for nucleotide in sequence:
                 if first_individual:
                     self.polymorphic_sites.append(PolymorphicSite())
-                if nucleotide not in self.polymorphic_sites[i].snps:
+                if nucleotide not in self.polymorphic_sites[i].snps and nucleotide in SNP.nucleotides:
                     self.polymorphic_sites[i].snps[nucleotide] = SNP(nucleotide)
                 self.polymorphic_sites[i].snps[nucleotide].individual_ids.add(indiv_id)
                 i += 1
