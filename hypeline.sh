@@ -64,7 +64,7 @@ for infile in $( ls $input_dir ); do
 	echo "running bowtie on $filename"
 	bowtie2 -f -x $reference_name -U $filename | samtools view -S -b | samtools sort - -o $sorted_bam
 	filtered_vcf=${inter_dir}${id}.filtered.vcf
-	freebayes --min-base-quality 3 --min-mapping-quality 1 -f $reference_file $sorted_bam | bcftools filter -e 'QUAL < 20' | bcftools filter -e 'DP < 5' -o $filtered_vcf
+	freebayes --min-mapping-quality 1 -f $reference_file $sorted_bam | bcftools filter -e 'QUAL < 20' | bcftools filter -e 'DP < 5' -o $filtered_vcf
 
 	phased_vcf=${inter_dir}${id}.phased.vcf
 	whatshap phase --ignore-read-groups --reference $reference_file -o $phased_vcf $filtered_vcf $sorted_bam
