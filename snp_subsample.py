@@ -4,8 +4,8 @@ Author: Kelly Sovacool
 Email: kellysovacool@uky.edu
 28 Sep 2017
 
-Usage: 
-    snp_subsample.py <snp-sites-dir> <output-filename-base> [--abundance-filter=<percent-cutoff> --output-filtered-fasta-dir=<filtered_dir> --skip-filter --size=<subsample-size> --all-snps-all-loci --missing-cutoff=<percent-cutoff> --output-format=<fasta-or-strx> --ignore-indels]
+Usage:
+    snp_subsample.py <snp-sites-dir> <output-filename-base> [--abundance-filter=<percent-cutoff> --output-filtered-fasta-dir=<filtered_dir> --skip-filter --num_subsamples=<num> --all-snps-all-loci --missing-cutoff=<percent-cutoff> --output-format=<fasta-or-strx>]
     snp_subsample.py --help
 
 Options:
@@ -13,28 +13,31 @@ Options:
     --abundance-filter=<percent-cutoff>         filter out SNPs below a percent abundance cutoff [default: 0.05].
     --missing-cutoff=<percent-cutoff>           filter out SNP sites with more than <percent-cutoff> of individuals missing data [default: 0.5].
     --skip-filter                               skip the filtering step (e.g. if using already-filtered data).
-    --size=<subsample-size>                     number of subsamples [default: 1].
+    --num_subsamples=<num>                      number of subsamples [default: 1].
     --all-snps-all-loci                         output a file containing all snps from all loci.
     --output-filtered-fasta-dir=<filtered_dir>  output filtered snp-sites fastas to a directory.
     --output-format=<fasta-or-strx>             output format for subsamples [default: strx].
-    --ignore-indels                             if an indel is present at a snp site, ignore that site. default behavior is to report indels as missing data.
 """
 import Bio.Seq
 import Bio.SeqIO
 import docopt
 import os
 import random
+# TODO: Redesign: clean up main fcn, better OOP design
 
-# Redesign: clean up main fcn, better OOP design
-
+strx_extension = "_strx.txt"
+fasta_extension = ".fna"
 
 def main(args):
-    args['--ignore-indels'] = '--ignore-indels' in args
-    args['--skip-filter'] = '--skip-filter' in args
+
+    base, fn = os.path.split(args['<output-filename-base>'])
+    if not os.path.isdir(base):
+        os.mkdir(base)
     all_individual_ids = set()
     for fasta_filename in os.listdir(args['<snp-sites-dir>']):  # build set of individual ids
-        with open(args['<snp-sites-dir>'] + fasta_filename, 'r') as infile:
-            all_individual_ids.update(record.id for record in Bio.SeqIO.parse(infile, 'fasta'))
+        if fasta_filename.endswith('.fna'):
+            with open(args['<snp-sites-dir>'] + fasta_filename, 'r') as infile:
+                all_individual_ids.update(record.id for record in Bio.SeqIO.parse(infile, 'fasta'))
     bad_individual_ids = set()
     for id in all_individual_ids:  # throw out individuals that aren't haplotyped (usually they're not real individuals)
         id_no_number = id.split('_')[0]
@@ -42,13 +45,14 @@ def main(args):
             bad_individual_ids.add(id)
     all_individual_ids.difference_update(bad_individual_ids)
 
+    # TODO: save loci as jsonpickles to allow quick reloading
     loci = Loci()  # build loci
     for fasta_filename in sorted(os.listdir(args['<snp-sites-dir>'])):
         with open(args['<snp-sites-dir>'] + fasta_filename, 'r') as infile:
             locus_id = fasta_filename.split('.')[0]
             locus = Locus(locus_id, Bio.SeqIO.parse(infile, 'fasta'), all_individual_ids, bad_individual_ids)
             if not args['--skip-filter']:
-                locus.filter(float(args['--abundance-filter']), float(args['--missing-cutoff']), ignore_indels=args['--ignore-indels'])
+                locus.filter(float(args['--abundance-filter']), float(args['--missing-cutoff']))
                 if args['--output-filtered-fasta-dir']:
                     with open(args['--output-filtered-fasta-dir'] + fasta_filename, 'w') as filtered_fasta:
                         for seq_id, sequence in locus.individuals.items():
@@ -57,27 +61,27 @@ def main(args):
         loci.append(locus)
     output_file_extension = output_format_extension(args['--output-format'])
 
-    if args['--size']:  # take subsample(s)
-        for number in range(1, int(args['--size']) + 1):
+    if args['--num_subsamples']:  # take subsample(s)
+        for number in range(1, int(args['--num_subsamples']) + 1):
             loci.new_random_poly_sites()
             with open(args['<output-filename-base>'] + str(number) + output_file_extension, 'w') as outfile:
                 for id in sorted(all_individual_ids):
-                    line = id + '\t' if output_file_extension != '.strx.txt' else id.split('_')[0] + '\t'
+                    line = id + '\t' if output_file_extension != strx_extension else id.split('_')[0] + '\t'
                     for locus in loci:
                         nuc = locus.individuals[id][locus.random_poly_site] if id in locus.individuals else '-'
-                        if output_file_extension == '.strx.txt':
+                        if output_file_extension == strx_extension:
                             nuc = nucleotide_to_structure(nuc)
                         line += nuc + '\t'
                     line += '\n'
                     outfile.write(line)
 
     if args['--all-snps-all-loci']:
-        with open('all-snps-all-loci' + output_file_extension, 'w') as outfile:
+        with open(os.path.join(os.path.split(args['<output-filename-base>'])[0], 'all-snps-all-loci' + output_file_extension), 'w') as outfile:
             for id in sorted(all_individual_ids):
-                line = id + '\t' if output_file_extension != '.strx.txt' else id.split('_')[0] + '\t'
+                line = id + '\t' if output_file_extension != strx_extension else id.split('_')[0] + '\t'
                 for locus in loci:
                     seq = locus.individuals[id] if id in locus.individuals else '-'*len(locus.polymorphic_sites)
-                    if output_file_extension == '.strx.txt':
+                    if output_file_extension == strx_extension:
                         strx_seq = ''
                         for nuc in seq:
                             strx_seq += nucleotide_to_structure(nuc) + '\t'
@@ -95,9 +99,9 @@ class Loci(list):
         else:
             super().__init__()
 
-    def filter(self, abundance_cutoff=0.05, missing_cutoff=0.5, ignore_indels=False):
+    def filter(self, abundance_cutoff=0.05, missing_cutoff=0.5):
         for locus in self:
-            locus.filter(abundance_cutoff, missing_cutoff, ignore_indels=ignore_indels)
+            locus.filter(abundance_cutoff, missing_cutoff)
 
     def new_random_poly_sites(self):
         for locus in self:
@@ -134,13 +138,13 @@ class Locus:
     def __str__(self):
         return self.id
 
-    def filter(self, abundance_cutoff, missing_cutoff, ignore_indels=False):
+    def filter(self, abundance_cutoff, missing_cutoff):
         original_count_sites = len(self.polymorphic_sites)
         removed_sites = 0
         i = 0
         while i < (original_count_sites - removed_sites):
             pmsite = self.polymorphic_sites[i]
-            if (ignore_indels and pmsite.indel_or_missing_exists) or pmsite.has_low_abundance(len(self.individuals), abundance_cutoff) or pmsite.number_individuals_missing_data >= missing_cutoff:
+            if pmsite.has_low_abundance(len(self.individuals), abundance_cutoff) or pmsite.number_individuals_missing_data >= missing_cutoff:
                 self.polymorphic_sites.pop(i)
                 for id, sequence in self.individuals.items():
                     self.individuals[id] = sequence[:i] + sequence[i+1:]  # update sequence for individuals
@@ -194,9 +198,9 @@ class SNP:
 
 def output_format_extension(format):
     if format == 'strx':
-        extension = '.strx.txt'
+        extension = strx_extension
     elif format == 'fasta':
-        extension = '.fasta'
+        extension = fasta_extension
     else:
         raise ValueError('unrecognized output format {}'.format(format))
     return extension
@@ -224,4 +228,3 @@ if __name__ == "__main__":
         if arguments[arg]:
             arguments[arg] = check_directory(arguments[arg])
     main(arguments)
-

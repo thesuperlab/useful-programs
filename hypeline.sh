@@ -3,9 +3,10 @@
 # Author: Kelly Sovacool
 # Email: kellysovacool@uky.edu
 # 30 Nov. 2017
+# UPDATE: 01 Apr. 2018: This script has been replaced by the tsp_pipeline snakemake. Highly recommended using that instead!
 #
 # Usage:
-#	./hypeline.sh <reference_name> <input_dir> <output_dir> 
+#	./hypeline.sh <reference_name> <input_dir> <output_dir>
 
 input_dir=$2
 output_dir=$3
@@ -22,7 +23,7 @@ reference_file=${reference_name}.fna
 #if [ ! -e ${reference_name}.bwt ]; then
 #	bwa index $reference_file
 #fi
-if [ ! -e ${reference_name}.fai ]; then
+if [ ! -e ${reference_file}.fai ]; then
 	samtools faidx $reference_file
 fi
 if [ ! -e ${reference_name}.1.bt2 ]; then
@@ -42,10 +43,10 @@ done
 for infile in $( ls $input_dir ); do
 	id=$( echo $infile | sed s/\.fna$// )
 	echo "Calling haplotypes for id ${id}"
-	sorted_bam=${inter_dir}${id}.sorted.bam	
+	sorted_bam=${inter_dir}${id}.sorted.bam
 	#filename_r1="${input_dir}${id}_R1.fq"
 	#filename_r2="${input_dir}${id}_R2.fq"
-	#if [ -f $filename_r1 ] && [ -f $filename_r2 ]; then 
+	#if [ -f $filename_r1 ] && [ -f $filename_r2 ]; then
 	#	#bwa mem $reference_file $filename_r1 $filename_r2 | samtools view -S -b | samtools sort - -o $sorted_bam
 	#	bowtie2 -x $reference_name -1 $filename_r1 -2 $filename_r2 | samtools view -S -b | samtools sort - -o $sorted_bam
 	#else
@@ -92,4 +93,3 @@ for filename in $(ls $combined_haps_dir); do
 	ambiguous_dashes.py $removed_refs_filename $haps_filename
 	snp-sites -o ${snps_dir}${id}.snps $haps_filename
 done
-
